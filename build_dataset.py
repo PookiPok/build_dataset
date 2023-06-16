@@ -11,9 +11,11 @@ video_capture = None
 count = 1
 image_label = None
 text_label = None
+frame_time_label = None
 video = None
 key = None
 fpsWaitTime = None
+durationInSeconds = 0
 image_path = None
 # Function to display the selected option
 
@@ -42,16 +44,24 @@ def display_option(option):
     try:
         shutil.move(image_path, new_loc)
         text_label['text'] = "Move to:" + new_loc + "/" + key + "_" + str(count-1) + ".jpg"
+        frame_time_label['text'] = str(count) + " seconds out of:" + str(durationInSeconds)
         getNextImage(False)
     except Exception as e:
-        print()
+        print(e)
+        os.remove(new_loc + "/" + key + "_" + str(count-1) + ".jpg")
+        shutil.move(image_path, new_loc)
+        text_label['text'] = "Move to:" + new_loc + "/" + key + "_" + str(count-1) + ".jpg"
+        frame_time_label['text'] = str(count) + " seconds out of:" + str(durationInSeconds)
+        getNextImage(False)
+        
 
 def loadWindow():
     # Create a tkinter window
     global image_label
     global text_label
+    global frame_time_label
     frame = tk.Frame(master=window)
-    frame.grid(row=3, column=0 , columnspan=3)
+    frame.grid(row=4, column=0 , columnspan=3)
 
     # Display the image
     image_label = tk.Label(frame)
@@ -89,6 +99,11 @@ def loadWindow():
     text_label = tk.Label(frame6, width = 50, height = 3)
     text_label.pack()
 
+    frame7 = tk.Frame(master=window)
+    frame7.grid(row=3, column=0, columnspan=3)
+    frame_time_label = tk.Label(frame7, width = 50, height = 3)
+    frame_time_label.pack()
+
     window.bind('a', lambda event: display_option(1))
     window.bind('d', lambda event: display_option(3))
     window.bind('s', lambda event: display_option(2))
@@ -105,6 +120,9 @@ def image_capture(first_time):
     frame_count = 1
     if (first_time):
         ret, frame = video_capture.read()
+        if not ret:
+            print("Movie finish")
+            exit(0)
     else:
         stop = True
         while (stop):
@@ -113,20 +131,29 @@ def image_capture(first_time):
                 if frame_count%fpsWaitTime == 0:
                     stop = False
                 frame_count+=1
+            else:
+                print("Movie finish")
+                exit(0)
     image_path = 'pictures/' + key + "_" + str(count) + ".jpg"
     cv2.imwrite(image_path, frame)
     count+=1
+    movie_loc = video_capture.get(cv2.CAP_PROP_POS_MSEC)
+    print("Movie location:" + str(movie_loc))
 
 def main(video_name, img_prefix):
     global video_capture
     global video
     global key
     global fpsWaitTime
+    global durationInSeconds
     video = video_name
     key = img_prefix
     video_capture = cv2.VideoCapture(video)
+    video_capture.set(cv2.CAP_PROP_POS_MSEC, 6992.0)
     fps = video_capture.get(cv2.CAP_PROP_FPS)
+    totalNoFrames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
     fpsPerSec = round(fps, 0)
+    durationInSeconds = round(totalNoFrames / fpsPerSec , 0)
     fpsWaitTime = fpsPerSec * 1
     loadWindow()
     window.mainloop()
