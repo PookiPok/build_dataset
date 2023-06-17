@@ -4,6 +4,7 @@ import cv2
 import shutil
 import argparse
 import os
+import json
 
 window = tk.Tk()
 window.resizable(0,0)
@@ -35,10 +36,15 @@ def display_option(option):
     elif option == 3:
         new_loc = 'pictures/not_happy'
     elif option == 4:
-        os.remove(image_path)
+        if (os.path.exists(image_path)):
+            os.remove(image_path)
+        movie_loc = video_capture.get(cv2.CAP_PROP_POS_MSEC)
+        data = {'frame_location': movie_loc,'file_count': count}
+        saveMovieLocationToFile(data, 'movie_location.json')
         exit(0)
     elif option == 5:
-        os.remove(image_path)
+        if (os.path.exists(image_path)):
+            os.remove(image_path)
         getNextImage(False)
         return
     try:
@@ -48,9 +54,10 @@ def display_option(option):
         getNextImage(False)
     except Exception as e:
         print(e)
-        os.remove(new_loc + "/" + key + "_" + str(count-1) + ".jpg")
-        shutil.move(image_path, new_loc)
-        text_label['text'] = "Move to:" + new_loc + "/" + key + "_" + str(count-1) + ".jpg"
+        if (os.path.exists(new_loc + "/" + key + "_" + str(count-1) + ".jpg")):
+            os.remove(new_loc + "/" + key + "_" + str(count-1) + ".jpg")
+            shutil.move(image_path, new_loc)
+            text_label['text'] = "Move to:" + new_loc + "/" + key + "_" + str(count-1) + ".jpg"
         frame_time_label['text'] = str(count) + " seconds out of:" + str(durationInSeconds)
         getNextImage(False)
         
@@ -113,15 +120,29 @@ def loadWindow():
     # Start the tkinter event loop
     #window.focus_force()
 
+def saveMovieLocationToFile(data, path):
+    with open(path, 'w') as outfile:
+        json.dump(data, outfile)
+        print("File saved in %s" % path)
+
+def readMovieLocationFromFile(path):
+    data = None
+    if (os.path.exists(path)):
+        with open(path) as json_file:
+            data = json.load(json_file)
+    return data       
+
 def image_capture(first_time):
-    global count
     global image_path
+    global count
     frame = None
     frame_count = 1
     if (first_time):
         ret, frame = video_capture.read()
         if not ret:
             print("Movie finish")
+            if (os.path.exists('movie_location.json')):
+                os.remove('movie_location.json')
             exit(0)
     else:
         stop = True
@@ -133,12 +154,12 @@ def image_capture(first_time):
                 frame_count+=1
             else:
                 print("Movie finish")
+                if (os.path.exists('movie_location.json')):
+                    os.remove('movie_location.json')
                 exit(0)
     image_path = 'pictures/' + key + "_" + str(count) + ".jpg"
     cv2.imwrite(image_path, frame)
     count+=1
-    movie_loc = video_capture.get(cv2.CAP_PROP_POS_MSEC)
-    print("Movie location:" + str(movie_loc))
 
 def main(video_name, img_prefix):
     global video_capture
@@ -146,10 +167,15 @@ def main(video_name, img_prefix):
     global key
     global fpsWaitTime
     global durationInSeconds
+    global count
     video = video_name
     key = img_prefix
     video_capture = cv2.VideoCapture(video)
-    video_capture.set(cv2.CAP_PROP_POS_MSEC, 6992.0)
+    data = readMovieLocationFromFile('movie_location.json')
+    if (data):
+        print("Movie old location exists, loading location from file...")
+        count = data['file_count']
+        video_capture.set(cv2.CAP_PROP_POS_MSEC, data['frame_location'])
     fps = video_capture.get(cv2.CAP_PROP_FPS)
     totalNoFrames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
     fpsPerSec = round(fps, 0)
